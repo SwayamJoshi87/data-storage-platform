@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Search, Upload, LogOut, User, LayoutGrid, List, SortAsc, SortDesc } from 'lucide-react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -63,6 +64,13 @@ export function Topbar({ onUploadClick }: TopbarProps) {
   const rawName = user?.signInDetails?.loginId ?? user?.username ?? '';
   const userInitial = (rawName[0] ?? 'U').toUpperCase();
   const readOnly = isReadOnlyPath(currentPath, isAdmin);
+
+  useEffect(() => {
+    // debug: helps verify admin detection and read-only state in browser console
+    // remove this after debugging
+    // eslint-disable-next-line no-console
+    console.debug('Topbar debug:', { currentPath, isAdmin, readOnly });
+  }, [currentPath, isAdmin, readOnly]);
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4">
