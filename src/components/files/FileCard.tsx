@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Check,
   Download,
@@ -40,24 +40,49 @@ function FileIcon({ category, className }: { category: FileCategory; className?:
   }
 }
 
+function useInViewOnce(rootMargin = '400px') {
+  const ref = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setInView(true); observer.disconnect(); } },
+      { rootMargin },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [rootMargin]);
+  return { ref, inView };
+}
+
 function ImageThumbnail({ path, name }: { path: string; name: string }) {
-  const { data: url, isLoading } = useFileObjectUrl(path);
+  const { ref, inView } = useInViewOnce();
+  const { data: url, isLoading } = useFileObjectUrl(inView ? path : null);
   const [error, setError] = useState(false);
-  if (isLoading) return <Skeleton className="size-full rounded-none" />;
-  if (!url || error) return <FileImage className="size-10 text-emerald-400 opacity-50" />;
   return (
-    <img src={url} alt={name} className="size-full object-cover" onError={() => setError(true)} loading="lazy" />
+    <div ref={ref} className="size-full flex items-center justify-center">
+      {isLoading ? (
+        <Skeleton className="size-full rounded-none" />
+      ) : url && !error ? (
+        <img src={url} alt={name} className="size-full object-cover" onError={() => setError(true)} />
+      ) : (
+        <FileImage className="size-10 text-emerald-400 opacity-50" />
+      )}
+    </div>
   );
 }
 
 function VideoThumbnail({ path, name }: { path: string; name: string }) {
-  const { data: url, isLoading, error } = useFileObjectUrl(getThumbnailPath(path));
+  const { ref, inView } = useInViewOnce();
+  const { data: url, isLoading, error } = useFileObjectUrl(inView ? getThumbnailPath(path) : null);
   const [imageError, setImageError] = useState(false);
-  if (isLoading) return <Skeleton className="size-full rounded-none" />;
   return (
-    <div className="flex size-full items-center justify-center bg-muted/30">
-      {url && !error && !imageError ? (
-        <img src={url} alt={name} className="size-full object-cover" loading="lazy" onError={() => setImageError(true)} />
+    <div ref={ref} className="flex size-full items-center justify-center bg-muted/30">
+      {isLoading ? (
+        <Skeleton className="size-full rounded-none" />
+      ) : url && !error && !imageError ? (
+        <img src={url} alt={name} className="size-full object-cover" onError={() => setImageError(true)} />
       ) : (
         <FileVideo className="size-10 text-purple-400 opacity-60" />
       )}
