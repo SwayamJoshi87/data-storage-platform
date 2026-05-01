@@ -13,11 +13,19 @@ import { useFolderContents } from '@/hooks/useStorage';
 import type { StorageFile } from '@/hooks/useStorage';
 
 function FileBrowserContent() {
-  const { selectedFilePath, setSelectedFilePath, currentPath, setIdentityId, setIsAdmin } =
-    useFileBrowserStore();
+  const {
+    selectedFilePath,
+    setSelectedFilePath,
+    currentPath,
+    identityId,
+    setCurrentPath,
+    setIdentityId,
+    setIsAdmin,
+  } = useFileBrowserStore();
   const { user } = useAuthenticator();
   const { trigger: triggerUpload } = useUploadTrigger();
-  const { data } = useFolderContents(currentPath);
+  const resolvedPath = currentPath === 'private/' && !identityId ? '' : currentPath;
+  const { data } = useFolderContents(resolvedPath);
 
   useEffect(() => {
     fetchAuthSession().then((session) => {
@@ -29,14 +37,20 @@ function FileBrowserContent() {
         (session.idToken?.payload?.['cognito:groups'] as string[] | undefined);
 
       // Also check the Amplify UI 'user' object as a fallback
-      const groupsFromUser = (user as any)?.signInUserSession?.idToken?.payload?.['cognito:groups'] as
-        | string[]
-        | undefined;
+      const groupsFromUser = (user as any)?.signInUserSession?.idToken?.payload?.[
+        'cognito:groups'
+      ] as string[] | undefined;
 
       const isAdminFlag = [groupsFromSession, groupsFromUser].some((g) => g?.includes('admin'));
       setIsAdmin(Boolean(isAdminFlag));
     });
   }, [setIdentityId, setIsAdmin, user]);
+
+  useEffect(() => {
+    if (identityId && currentPath === 'private/') {
+      setCurrentPath(`private/${identityId}/`);
+    }
+  }, [currentPath, identityId, setCurrentPath]);
 
   const selectedFile: StorageFile | null =
     data?.files.find((f) => f.path === selectedFilePath) ?? null;
@@ -53,10 +67,7 @@ function FileBrowserContent() {
         </UploadZone>
       </SidebarInset>
 
-      <FileDetail
-        file={selectedFile}
-        onClose={() => setSelectedFilePath(null)}
-      />
+      <FileDetail file={selectedFile} onClose={() => setSelectedFilePath(null)} />
     </SidebarProvider>
   );
 }

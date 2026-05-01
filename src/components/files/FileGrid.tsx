@@ -42,6 +42,7 @@ function EmptyState() {
 export function FileGrid() {
   const {
     currentPath,
+    identityId,
     setCurrentPath,
     selectedFilePath,
     setSelectedFilePath,
@@ -51,7 +52,8 @@ export function FileGrid() {
     searchQuery,
   } = useFileBrowserStore();
 
-  const { data, isLoading, error } = useFolderContents(currentPath);
+  const resolvedPath = currentPath === 'private/' && !identityId ? '' : currentPath;
+  const { data, isLoading, error } = useFolderContents(resolvedPath);
   const { mutate: deleteFile } = useDeleteFile();
 
   const sortFiles = (files: StorageFile[]) => {
@@ -68,10 +70,10 @@ export function FileGrid() {
   const filtered = data
     ? {
         folders: data.folders.filter((f) =>
-          f.name.toLowerCase().includes(searchQuery.toLowerCase()),
+          f.name.toLowerCase().includes(searchQuery.toLowerCase())
         ),
         files: sortFiles(
-          data.files.filter((f) => f.name.toLowerCase().includes(searchQuery.toLowerCase())),
+          data.files.filter((f) => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
         ),
       }
     : null;
@@ -92,7 +94,7 @@ export function FileGrid() {
       <div
         className={cn(
           'grid gap-3 p-4',
-          'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6',
+          'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
         )}
       >
         {isLoading ? (
