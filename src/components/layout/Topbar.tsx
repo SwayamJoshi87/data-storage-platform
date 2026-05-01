@@ -130,10 +130,14 @@ export function Topbar({ onUploadClick }: TopbarProps) {
           title={sortOrder === 'asc' ? 'Sort descending' : 'Sort ascending'}
           onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
         >
-          {sortOrder === 'asc' ? <SortAsc className="size-3.5" /> : <SortDesc className="size-3.5" />}
+          {sortOrder === 'asc' ? (
+            <SortAsc className="size-3.5" />
+          ) : (
+            <SortDesc className="size-3.5" />
+          )}
         </Button>
 
-        {!readOnly && (
+        {(!readOnly || isAdmin) && (
           <Button size="sm" className="gap-1.5 h-8" onClick={onUploadClick}>
             <Upload className="size-3.5" />
             <span className="hidden sm:inline">Upload</span>
