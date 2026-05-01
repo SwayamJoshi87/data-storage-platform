@@ -19,7 +19,7 @@ amplify/              Amplify Gen 2 backend (auth + storage definitions)
 src/
   components/
     layout/           AppSidebar, Topbar
-    files/            FileCard, FileGrid, FileDetail, MediaViewer, UploadZone
+    files/            CreateFolderDialog, FileCard, FileGrid, FileDetail, MediaViewer, UploadZone
     ui/               shadcn auto-generated components
     ThemeToggle.tsx
   hooks/
@@ -68,6 +68,8 @@ The bucket has media prefixes plus parallel thumbnail sidecar prefixes:
 - **Authenticated media reads** use `downloadData()` and local `blob:` URLs for thumbnails and explicit downloads.
 - **Media browsing** uses a dedicated `MediaViewer` dialog. Clicking an image or video opens the near-fullscreen viewer with presigned URLs; it warms presigned URLs for `n-2` through `n+2` and preloads nearby image bytes. The card Info button opens the right-side detail panel.
 - **Video thumbnails** are generated client-side during upload and stored as JPEG sidecars at `thumbnails/{originalPath}.jpg`. Grid/detail video previews load the small thumbnail object, not the full video.
+- **Folders** are created by uploading a hidden `.folder` marker object inside the new prefix. Listing logic hides that marker from the file list. Folder deletion recursively checks the target and opens a warning dialog when it contains files or subfolders.
+- **Sidebar subfolders** should visually span the parent menu width, with only a modest icon/text indent.
 - **Video playback** uses `getUrl()` with a 5-hour expiry so the browser can stream and seek long videos with S3 range requests. The copied playback URL works until it expires; fully authenticated streaming would require a signed CDN/edge auth layer.
 - **shadcn/ui uses base-ui, not Radix** — `asChild` on `DropdownMenuTrigger` and `TooltipTrigger` does NOT work. Render these as their own button elements; don't nest a `<Button>` inside them.
 - **Private path 403 guard** — the sidebar skips listing `private/` until `identityId` is resolved via `fetchAuthSession()`.

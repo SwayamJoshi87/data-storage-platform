@@ -1,18 +1,22 @@
-import { Search, Upload, LogOut, User, LayoutGrid, List, SortAsc, SortDesc } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Search,
+  Upload,
+  LogOut,
+  User,
+  LayoutGrid,
+  List,
+  SortAsc,
+  SortDesc,
+  Shield,
+  FolderPlus,
+} from 'lucide-react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -24,6 +28,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useFileBrowserStore, canWritePath } from '@/store/useFileBrowserStore';
+import { CreateFolderDialog } from '@/components/files/CreateFolderDialog';
 
 function buildBreadcrumbs(path: string, identityId: string | null) {
   const parts = path.replace(/\/$/, '').split('/').filter(Boolean);
@@ -46,6 +51,9 @@ interface TopbarProps {
 
 export function Topbar({ onUploadClick }: TopbarProps) {
   const { user, signOut } = useAuthenticator();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   const {
     currentPath,
     setCurrentPath,
@@ -63,6 +71,27 @@ export function Topbar({ onUploadClick }: TopbarProps) {
   const rawName = user?.signInDetails?.loginId ?? user?.username ?? '';
   const userInitial = (rawName[0] ?? 'U').toUpperCase();
   const canUpload = canWritePath(currentPath, { isAdmin, identityId });
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setAccountMenuOpen(false);
+    };
+
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [accountMenuOpen]);
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4">
@@ -138,35 +167,91 @@ export function Topbar({ onUploadClick }: TopbarProps) {
         </Button>
 
         {canUpload && (
-          <Button size="sm" className="gap-1.5 h-8" onClick={onUploadClick}>
-            <Upload className="size-3.5" />
-            <span className="hidden sm:inline">Upload</span>
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={() => setCreateFolderOpen(true)}
+            >
+              <FolderPlus className="size-3.5" />
+              <span className="hidden sm:inline">Folder</span>
+            </Button>
+            <Button size="sm" className="h-8 gap-1.5" onClick={onUploadClick}>
+              <Upload className="size-3.5" />
+              <span className="hidden sm:inline">Upload</span>
+            </Button>
+          </>
         )}
 
         <ThemeToggle />
 
-        <DropdownMenu>
-          <DropdownMenuTrigger className="inline-flex size-8 items-center justify-center rounded-full hover:bg-accent focus:outline-none">
+        <div ref={accountMenuRef} className="relative">
+          <button
+            type="button"
+            className="inline-flex size-8 items-center justify-center rounded-full hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+            title="Account"
+            onClick={() => setAccountMenuOpen((open) => !open)}
+          >
             <Avatar className="size-7">
               <AvatarFallback className="text-xs">{userInitial}</AvatarFallback>
             </Avatar>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel className="truncate text-xs font-normal text-muted-foreground">
-              {rawName || 'User'}
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>
-              <User className="mr-2 size-3.5" /> Profile
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={signOut} className="text-destructive">
-              <LogOut className="mr-2 size-3.5" /> Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </button>
+
+          {accountMenuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-10 z-50 w-56 rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10"
+            >
+              <div className="truncate px-2 py-1.5 text-xs text-muted-foreground">
+                {rawName || 'User'}
+              </div>
+              <Separator className="-mx-1 my-1" />
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground opacity-70"
+                disabled
+              >
+                <User className="size-3.5" />
+                Profile
+              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => setAccountMenuOpen(false)}
+                >
+                  <Shield className="size-3.5" />
+                  Admin Dashboard
+                </button>
+              )}
+              <Separator className="-mx-1 my-1" />
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  signOut();
+                }}
+              >
+                <LogOut className="size-3.5" />
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      <CreateFolderDialog
+        open={createFolderOpen}
+        currentPath={currentPath}
+        onOpenChange={setCreateFolderOpen}
+      />
     </header>
   );
 }

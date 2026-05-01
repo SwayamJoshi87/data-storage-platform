@@ -81,13 +81,13 @@ function SidebarFolderItem({ folder, depth = 0 }: { folder: RootFolder; depth?: 
           <ChevronRight className="size-3 shrink-0 transition-transform group-data-open/collapsible:rotate-90" />
         </SidebarMenuButton>
         <CollapsibleContent>
-          <SidebarMenuSub>
+          <SidebarMenuSub className="mx-0 border-l-0 px-0 py-1 pl-4">
             {subFolders.map((sub) => (
               <SidebarMenuSubItem key={sub.path}>
                 <SidebarMenuSubButton
                   isActive={currentPath === sub.path}
                   onClick={() => setCurrentPath(sub.path)}
-                  className="gap-2"
+                  className="h-8 w-full gap-2"
                 >
                   <FolderOpen className={cn('size-3.5 shrink-0', depth === 0 && 'text-muted-foreground')} />
                   <span className="truncate">{sub.name}</span>

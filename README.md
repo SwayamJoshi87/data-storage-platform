@@ -15,6 +15,7 @@ This template equips you with a foundational React application integrated with A
   - Parallel `thumbnails/` paths for generated video thumbnail sidecars.
   - Secondary storage bucket with separate backup paths.
   - More info on how to setup : https://docs.amplify.aws/react/build-a-backend/storage/set-up-storage/#building-your-storage-backend
+- **Folders**: Writable locations expose a Folder action and delete controls. Empty folders are represented by a hidden `.folder` marker object so they appear in S3 listings.
 - **Authenticated thumbnails**: Grid thumbnails use authenticated S3 reads and local `blob:` URLs.
 - **Media viewer**: Clicking an image or video opens a near-fullscreen viewer with previous/next browsing, download, and an info action.
 - **Streaming media viewer**: Opening media creates 5-hour presigned S3 URLs so images and videos can load through the browser directly; the viewer warms presigned URLs for two items on either side and preloads nearby images for faster browsing.
@@ -69,6 +70,7 @@ This template equips you with a foundational React application integrated with A
 - Admin media is only visible to the `admin` Cognito group.
 - Private media is scoped to the owner's Cognito Identity Pool ID.
 - Video thumbnails are generated on new uploads only. Existing videos need to be re-uploaded or backfilled before they show a thumbnail.
+- Empty folders are stored as hidden `.folder` marker objects. The browser hides these markers from file lists, and folder deletion recursively checks for data before warning about non-empty folders.
 - Media viewer playback uses 5-hour presigned S3 URLs so images and videos can load without converting the whole object to an app-created blob first. Anyone with that URL can access the object until it expires.
 - Original videos are fully downloaded only when a user explicitly clicks Download. Fully authenticated streaming without copyable URLs would require a signed CDN or edge-auth layer.
 

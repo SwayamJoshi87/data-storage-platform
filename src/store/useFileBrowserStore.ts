@@ -9,7 +9,7 @@ export interface UploadItem {
   name: string;
   path: string;
   progress: number;
-  status: 'uploading' | 'done' | 'error';
+  status: 'queued' | 'uploading' | 'done' | 'error';
   error?: string;
 }
 
@@ -24,6 +24,8 @@ interface FileBrowserState {
   uploadQueue: UploadItem[];
   identityId: string | null;
   isAdmin: boolean;
+  /** Paths of files copied in-app for pasting to another folder */
+  clipboardPaths: string[];
 
   setCurrentPath: (path: string) => void;
   setSelectedFilePath: (path: string | null) => void;
@@ -37,6 +39,7 @@ interface FileBrowserState {
   addUpload: (item: UploadItem) => void;
   updateUpload: (id: string, updates: Partial<UploadItem>) => void;
   removeUpload: (id: string) => void;
+  setClipboardPaths: (paths: string[]) => void;
 }
 
 interface AccessContext {
@@ -50,14 +53,9 @@ function isWithinPrefix(path: string, prefix: string) {
 
 export function canWritePath(path: string, { isAdmin, identityId }: AccessContext) {
   if (!path) return false;
-
   if (isWithinPrefix(path, 'public/')) return isAdmin;
   if (isWithinPrefix(path, 'admin/')) return isAdmin;
-
-  if (identityId && isWithinPrefix(path, `private/${identityId}/`)) {
-    return true;
-  }
-
+  if (identityId && isWithinPrefix(path, `private/${identityId}/`)) return true;
   return false;
 }
 
@@ -72,6 +70,7 @@ export const useFileBrowserStore = create<FileBrowserState>((set) => ({
   uploadQueue: [],
   identityId: null,
   isAdmin: false,
+  clipboardPaths: [],
 
   setCurrentPath: (path) => set({ currentPath: path, selectedFilePath: null, mediaViewerPath: null }),
   setSelectedFilePath: (path) => set({ selectedFilePath: path }),
@@ -89,4 +88,5 @@ export const useFileBrowserStore = create<FileBrowserState>((set) => ({
     })),
   removeUpload: (id) =>
     set((s) => ({ uploadQueue: s.uploadQueue.filter((i) => i.id !== id) })),
+  setClipboardPaths: (paths) => set({ clipboardPaths: paths }),
 }));
