@@ -19,6 +19,7 @@ import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { useFileBrowserStore } from '@/store/useFileBrowserStore';
 import { useFolderContents } from '@/hooks/useStorage';
 import { cn } from '@/lib/utils';
+import type { StorageFolder } from '@/hooks/useStorage';
 
 interface RootFolder {
   label: string;
@@ -41,10 +42,79 @@ function getRootFolders(identityId: string | null, isAdmin: boolean): RootFolder
   return folders;
 }
 
-function SidebarFolderItem({ folder, depth = 0 }: { folder: RootFolder; depth?: number }) {
+// ---------------------------------------------------------------------------
+// Recursive subfolder item — rendered only when its parent is expanded, so
+// each level fetches lazily (one network call per opened folder, not the
+// whole tree up front).
+// ---------------------------------------------------------------------------
+function SubFolderItem({
+  folder,
+  indentLevel,
+}: {
+  folder: StorageFolder;
+  indentLevel: number; // 0 = first level under a root folder
+}) {
+  const { currentPath, setCurrentPath } = useFileBrowserStore();
+  const isActiveOrParent = currentPath === folder.path || currentPath.startsWith(folder.path);
+  const [open, setOpen] = useState(isActiveOrParent);
+
+  // Fetch immediately — this component only mounts when the parent is open,
+  // so the request is naturally lazy and cached by React Query.
+  const { data } = useFolderContents(folder.path);
+  const subFolders = data?.folders ?? [];
+  const hasChildren = subFolders.length > 0;
+
+  // Extra left padding for each nesting level beyond the first.
+  // First level uses the SidebarMenuSub pl-4 baseline; deeper levels add 12 px.
+  const extraPl = indentLevel > 0 ? indentLevel * 12 : 0;
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="group/collapsible">
+      <SidebarMenuSubItem>
+        <SidebarMenuSubButton
+          isActive={currentPath === folder.path}
+          onClick={() => {
+            setCurrentPath(folder.path);
+            if (hasChildren) setOpen((o) => !o);
+          }}
+          className="h-8 w-full gap-2"
+          style={extraPl > 0 ? { paddingLeft: `${extraPl + 8}px` } : undefined}
+        >
+          <FolderOpen
+            className={cn('size-3.5 shrink-0', indentLevel === 0 && 'text-muted-foreground')}
+          />
+          <span className="truncate flex-1">{folder.name}</span>
+          {hasChildren && (
+            <ChevronRight className="size-3 shrink-0 transition-transform group-data-open/collapsible:rotate-90" />
+          )}
+        </SidebarMenuSubButton>
+
+        {hasChildren && (
+          <CollapsibleContent>
+            <SidebarMenuSub className="mx-0 border-l-0 px-0 py-0.5 pl-4">
+              {subFolders.map((sub) => (
+                <SubFolderItem
+                  key={sub.path}
+                  folder={sub}
+                  indentLevel={indentLevel + 1}
+                />
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        )}
+      </SidebarMenuSubItem>
+    </Collapsible>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Root-level folder item (Public / Admin / My Files)
+// ---------------------------------------------------------------------------
+function SidebarFolderItem({ folder }: { folder: RootFolder }) {
   const { currentPath, setCurrentPath } = useFileBrowserStore();
   const isActive = currentPath === folder.path || currentPath.startsWith(folder.path);
   const [open, setOpen] = useState(isActive);
+
   // Don't fetch private path until identityId is resolved (avoids 403)
   const isResolved = !folder.path.startsWith('private/') || folder.path.split('/').length > 2;
   const { data } = useFolderContents(isResolved ? folder.path : '');
@@ -83,16 +153,7 @@ function SidebarFolderItem({ folder, depth = 0 }: { folder: RootFolder; depth?: 
         <CollapsibleContent>
           <SidebarMenuSub className="mx-0 border-l-0 px-0 py-1 pl-4">
             {subFolders.map((sub) => (
-              <SidebarMenuSubItem key={sub.path}>
-                <SidebarMenuSubButton
-                  isActive={currentPath === sub.path}
-                  onClick={() => setCurrentPath(sub.path)}
-                  className="h-8 w-full gap-2"
-                >
-                  <FolderOpen className={cn('size-3.5 shrink-0', depth === 0 && 'text-muted-foreground')} />
-                  <span className="truncate">{sub.name}</span>
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
+              <SubFolderItem key={sub.path} folder={sub} indentLevel={0} />
             ))}
           </SidebarMenuSub>
         </CollapsibleContent>
@@ -101,6 +162,9 @@ function SidebarFolderItem({ folder, depth = 0 }: { folder: RootFolder; depth?: 
   );
 }
 
+// ---------------------------------------------------------------------------
+// Sidebar shell
+// ---------------------------------------------------------------------------
 export function AppSidebar() {
   const { identityId, isAdmin } = useFileBrowserStore();
   const rootFolders = getRootFolders(identityId, isAdmin);
