@@ -14,7 +14,12 @@ export const storage = defineStorage({
       allow.groups(['admin']).to(['read', 'write', 'delete']),
     ],
     // Use the standard identity placeholder so Amplify generates correct policies
-    'private/{identityId}/*': [allow.entity('identity').to(['read', 'write', 'delete'])],
+    // Admins still need access to their own My Files because admin users are mapped
+    // to the admin role instead of the default authenticated role.
+    'private/{identityId}/*': [
+      allow.entity('identity').to(['read', 'write', 'delete']),
+      allow.groups(['admin']).to(['read', 'write', 'delete']),
+    ],
   }),
 });
 
@@ -23,6 +28,9 @@ export const secondaryStorage = defineStorage({
   access: (allow) => ({
     'backup_public/*': [allow.guest.to(['read']), allow.authenticated.to(['read'])],
     'backup_admin/*': [allow.groups(['admin']).to(['read', 'write', 'delete'])],
-    'backup_private/{identityId}/*': [allow.entity('identity').to(['read', 'write', 'delete'])],
+    'backup_private/{identityId}/*': [
+      allow.entity('identity').to(['read', 'write', 'delete']),
+      allow.groups(['admin']).to(['read', 'write', 'delete']),
+    ],
   }),
 });
