@@ -16,6 +16,7 @@ export interface UploadItem {
 interface FileBrowserState {
   currentPath: string;
   selectedFilePath: string | null;
+  mediaViewerPath: string | null;
   viewMode: ViewMode;
   sortField: SortField;
   sortOrder: SortOrder;
@@ -26,6 +27,7 @@ interface FileBrowserState {
 
   setCurrentPath: (path: string) => void;
   setSelectedFilePath: (path: string | null) => void;
+  setMediaViewerPath: (path: string | null) => void;
   setViewMode: (mode: ViewMode) => void;
   setSortField: (field: SortField) => void;
   setSortOrder: (order: SortOrder) => void;
@@ -37,16 +39,32 @@ interface FileBrowserState {
   removeUpload: (id: string) => void;
 }
 
-const READ_ONLY_PREFIXES = ['public/', 'backup_public/'];
+interface AccessContext {
+  isAdmin: boolean;
+  identityId: string | null;
+}
 
-export function isReadOnlyPath(path: string, isAdmin = false) {
-  if (isAdmin) return false;
-  return READ_ONLY_PREFIXES.some((p) => path === p || path.startsWith(p));
+function isWithinPrefix(path: string, prefix: string) {
+  return path === prefix || path.startsWith(prefix);
+}
+
+export function canWritePath(path: string, { isAdmin, identityId }: AccessContext) {
+  if (!path) return false;
+
+  if (isWithinPrefix(path, 'public/')) return isAdmin;
+  if (isWithinPrefix(path, 'admin/')) return isAdmin;
+
+  if (identityId && isWithinPrefix(path, `private/${identityId}/`)) {
+    return true;
+  }
+
+  return false;
 }
 
 export const useFileBrowserStore = create<FileBrowserState>((set) => ({
   currentPath: 'public/',
   selectedFilePath: null,
+  mediaViewerPath: null,
   viewMode: 'grid',
   sortField: 'name',
   sortOrder: 'asc',
@@ -55,8 +73,9 @@ export const useFileBrowserStore = create<FileBrowserState>((set) => ({
   identityId: null,
   isAdmin: false,
 
-  setCurrentPath: (path) => set({ currentPath: path, selectedFilePath: null }),
+  setCurrentPath: (path) => set({ currentPath: path, selectedFilePath: null, mediaViewerPath: null }),
   setSelectedFilePath: (path) => set({ selectedFilePath: path }),
+  setMediaViewerPath: (path) => set({ mediaViewerPath: path }),
   setViewMode: (mode) => set({ viewMode: mode }),
   setSortField: (field) => set({ sortField: field }),
   setSortOrder: (order) => set({ sortOrder: order }),

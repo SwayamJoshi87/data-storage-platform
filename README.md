@@ -12,8 +12,13 @@ This template equips you with a foundational React application integrated with A
    - More info on how to setup and configuration option: https://docs.amplify.aws/react/build-a-backend/auth/set-up-auth/
 - **Storage**: Configured with multiple S3 buckets and granular access controls. The sample is configured with
   - Default storage bucket with public, admin, and private access paths
+  - Parallel `thumbnails/` paths for generated video thumbnail sidecars.
   - Secondary storage bucket with separate backup paths.
   - More info on how to setup : https://docs.amplify.aws/react/build-a-backend/storage/set-up-storage/#building-your-storage-backend
+- **Authenticated thumbnails**: Grid thumbnails use authenticated S3 reads and local `blob:` URLs.
+- **Media viewer**: Clicking an image or video opens a near-fullscreen viewer with previous/next browsing, download, and an info action.
+- **Streaming media viewer**: Opening media creates 5-hour presigned S3 URLs so images and videos can load through the browser directly; the viewer warms presigned URLs for two items on either side and preloads nearby images for faster browsing.
+- **Video thumbnails**: Video uploads generate a small JPEG thumbnail at `thumbnails/{originalPath}.jpg`, so grids and detail previews do not download the full video.
 - **UI Components**: Pre-integrated Amplify UI React components including:
   - Authenticator for sign-in/sign-up flows
       - More info : https://ui.docs.amplify.aws/react/connected-components/authenticator
@@ -57,6 +62,15 @@ This template equips you with a foundational React application integrated with A
    ```bash
    npm run dev
    ```
+
+## Important Media Access Notes
+
+- Public media can be read by signed-in users; public writes are limited to the `admin` Cognito group.
+- Admin media is only visible to the `admin` Cognito group.
+- Private media is scoped to the owner's Cognito Identity Pool ID.
+- Video thumbnails are generated on new uploads only. Existing videos need to be re-uploaded or backfilled before they show a thumbnail.
+- Media viewer playback uses 5-hour presigned S3 URLs so images and videos can load without converting the whole object to an app-created blob first. Anyone with that URL can access the object until it expires.
+- Original videos are fully downloaded only when a user explicitly clicks Download. Fully authenticated streaming without copyable URLs would require a signed CDN or edge-auth layer.
 
 ## Deploying to AWS
 

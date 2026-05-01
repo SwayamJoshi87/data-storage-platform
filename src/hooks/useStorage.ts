@@ -1,5 +1,7 @@
-import { list, getUrl, uploadData, remove } from 'aws-amplify/storage';
+import { useEffect, useState } from 'react';
+import { list, uploadData, remove, downloadData, getUrl } from 'aws-amplify/storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getThumbnailPath } from '@/lib/thumbnailUtils';
 
 export interface StorageFile {
   path: string;
@@ -59,29 +61,92 @@ export function useFolderContents(path: string) {
   });
 }
 
-export function useFileUrl(path: string | null) {
+export function useFileObjectUrl(path: string | null) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    let canceled = false;
+    let nextObjectUrl: string | null = null;
+
+    setObjectUrl(null);
+    setError(null);
+
+    if (!path) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    const task = downloadData({ path });
+
+    task.result
+      .then(async ({ body }) => {
+        const blob = await body.blob();
+        if (canceled) return;
+
+        nextObjectUrl = URL.createObjectURL(blob);
+        setObjectUrl(nextObjectUrl);
+      })
+      .catch((err) => {
+        if (!canceled) {
+          setError(err instanceof Error ? err : new Error('Failed to load file'));
+        }
+      })
+      .finally(() => {
+        if (!canceled) setIsLoading(false);
+      });
+
+    return () => {
+      canceled = true;
+      task.cancel();
+      if (nextObjectUrl) URL.revokeObjectURL(nextObjectUrl);
+    };
+  }, [path]);
+
+  return { data: objectUrl, isLoading, error };
+}
+
+export function usePresignedFileUrl(path: string | null, enabled = true, expiresIn = 60 * 60 * 5) {
   return useQuery({
-    queryKey: ['storage', 'url', path],
+    queryKey: ['storage', 'url', path, expiresIn],
     queryFn: async () => {
-      if (!path) return null;
-      const { url } = await getUrl({ path, options: { expiresIn: 3600 } });
+      if (!path) throw new Error('Missing storage path');
+
+      const { url } = await getUrl({
+        path,
+        options: {
+          expiresIn,
+          validateObjectExistence: false,
+        },
+      });
+
       return url.toString();
     },
-    enabled: !!path,
-    staleTime: 50 * 60 * 1000,
-    gcTime: 55 * 60 * 1000,
+    enabled: Boolean(path && enabled),
+    staleTime: Math.max(0, (expiresIn - 60) * 1000),
+    gcTime: expiresIn * 1000,
   });
 }
 
 export function useDeleteFile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (path: string) => remove({ path }),
+    mutationFn: async (path: string) => {
+      await remove({ path });
+      await remove({ path: getThumbnailPath(path) }).catch(() => undefined);
+    },
     onSuccess: (_, path) => {
       const parent = path.slice(0, path.lastIndexOf('/') + 1);
       qc.invalidateQueries({ queryKey: ['storage', 'list', parent] });
     },
   });
+}
+
+export async function downloadFile(path: string): Promise<Blob> {
+  const { body } = await downloadData({ path }).result;
+  return body.blob();
 }
 
 export async function uploadFile(

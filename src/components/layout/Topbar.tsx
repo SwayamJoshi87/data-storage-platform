@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Search, Upload, LogOut, User, LayoutGrid, List, SortAsc, SortDesc } from 'lucide-react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -24,7 +23,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { useFileBrowserStore, isReadOnlyPath } from '@/store/useFileBrowserStore';
+import { useFileBrowserStore, canWritePath } from '@/store/useFileBrowserStore';
 
 function buildBreadcrumbs(path: string, identityId: string | null) {
   const parts = path.replace(/\/$/, '').split('/').filter(Boolean);
@@ -63,14 +62,7 @@ export function Topbar({ onUploadClick }: TopbarProps) {
   const crumbs = buildBreadcrumbs(currentPath, identityId);
   const rawName = user?.signInDetails?.loginId ?? user?.username ?? '';
   const userInitial = (rawName[0] ?? 'U').toUpperCase();
-  const readOnly = isReadOnlyPath(currentPath, isAdmin);
-
-  useEffect(() => {
-    // debug: helps verify admin detection and read-only state in browser console
-    // remove this after debugging
-    // eslint-disable-next-line no-console
-    console.debug('Topbar debug:', { currentPath, isAdmin, readOnly });
-  }, [currentPath, isAdmin, readOnly]);
+  const canUpload = canWritePath(currentPath, { isAdmin, identityId });
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4">
@@ -145,7 +137,7 @@ export function Topbar({ onUploadClick }: TopbarProps) {
           )}
         </Button>
 
-        {(!readOnly || isAdmin) && (
+        {canUpload && (
           <Button size="sm" className="gap-1.5 h-8" onClick={onUploadClick}>
             <Upload className="size-3.5" />
             <span className="hidden sm:inline">Upload</span>

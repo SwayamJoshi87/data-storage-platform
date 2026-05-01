@@ -1,14 +1,17 @@
-import { X, Download, Trash2, Link, FileText, FileImage, FileVideo, FileAudio, FileArchive, File } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { X, Download, Trash2, FileText, FileVideo, FileAudio, FileArchive, File, Play } from 'lucide-react';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useFileUrl } from '@/hooks/useStorage';
+import { downloadFile, useFileObjectUrl, usePresignedFileUrl } from '@/hooks/useStorage';
 import { useDeleteFile } from '@/hooks/useStorage';
 import { getFileCategory, formatFileSize, formatDateTime, getFileExtension } from '@/lib/fileUtils';
+import { getThumbnailPath } from '@/lib/thumbnailUtils';
 import type { StorageFile } from '@/hooks/useStorage';
-import { useFileBrowserStore, isReadOnlyPath } from '@/store/useFileBrowserStore';
+import { useFileBrowserStore, canWritePath } from '@/store/useFileBrowserStore';
 
 interface FileDetailProps {
   file: StorageFile | null;
@@ -16,22 +19,38 @@ interface FileDetailProps {
 }
 
 export function FileDetail({ file, onClose }: FileDetailProps) {
-  const { data: url, isLoading: urlLoading } = useFileUrl(file?.path ?? null);
-  const { mutate: deleteFile, isPending: deleting } = useDeleteFile();
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isVideoRequested, setIsVideoRequested] = useState(false);
   const category = file ? getFileCategory(file.name) : 'other';
-  const { isAdmin } = useFileBrowserStore();
-  const readOnly = file ? isReadOnlyPath(file.path, isAdmin) : false;
+  const previewPath = file
+    ? category === 'video'
+      ? getThumbnailPath(file.path)
+      : file.path
+    : null;
+  const { data: url, isLoading: urlLoading } = useFileObjectUrl(previewPath);
+  const { data: videoUrl, isLoading: videoLoading } = usePresignedFileUrl(
+    file && category === 'video' ? file.path : null,
+    isVideoRequested,
+  );
+  const { mutate: deleteFile, isPending: deleting } = useDeleteFile();
+  const { isAdmin, identityId } = useFileBrowserStore();
+  const canDelete = file ? canWritePath(file.path, { isAdmin, identityId }) : false;
 
-  const handleDownload = () => {
-    if (!url || !file) return;
+  useEffect(() => {
+    setIsPreviewOpen(false);
+    setIsVideoRequested(false);
+  }, [file?.path]);
+
+  const handleDownload = async () => {
+    if (!file) return;
+
+    const blob = await downloadFile(file.path);
+    const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
+    a.href = objectUrl;
     a.download = file.name;
     a.click();
-  };
-
-  const handleCopy = () => {
-    if (url) navigator.clipboard.writeText(url);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
   };
 
   const handleDelete = () => {
@@ -39,9 +58,20 @@ export function FileDetail({ file, onClose }: FileDetailProps) {
     deleteFile(file.path, { onSuccess: onClose });
   };
 
+  const openPreview = () => {
+    if (!file || (category !== 'image' && category !== 'video')) return;
+    if (category === 'video') setIsVideoRequested(true);
+    setIsPreviewOpen(true);
+  };
+
+  const closePreview = () => {
+    setIsPreviewOpen(false);
+  };
+
   return (
+    <>
     <Sheet open={!!file} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-80 overflow-y-auto p-0 sm:w-96">
+      <SheetContent className="w-80 overflow-y-auto p-0 sm:w-96" showCloseButton={false}>
         <SheetHeader className="flex flex-row items-center justify-between border-b px-4 py-3">
           <SheetTitle className="truncate pr-2 text-sm">{file?.name}</SheetTitle>
           <Button variant="ghost" size="icon" className="size-7 shrink-0" onClick={onClose}>
@@ -54,14 +84,32 @@ export function FileDetail({ file, onClose }: FileDetailProps) {
             {urlLoading ? (
               <Skeleton className="size-full rounded-lg" />
             ) : category === 'image' && url ? (
-              <img src={url} alt={file?.name} className="max-h-full max-w-full object-contain" />
-            ) : category === 'video' && url ? (
-              <video
-                src={url}
-                controls
-                className="max-h-full max-w-full rounded-lg"
-                preload="metadata"
-              />
+              <button
+                type="button"
+                className="flex size-full cursor-zoom-in items-center justify-center"
+                onClick={openPreview}
+                title="Open preview"
+              >
+                <img src={url} alt={file?.name} className="max-h-full max-w-full object-contain" />
+              </button>
+            ) : category === 'video' ? (
+              <button
+                type="button"
+                className="relative flex size-full items-center justify-center bg-muted/30"
+                onClick={openPreview}
+                title="Play video"
+              >
+                {url ? (
+                  <img src={url} alt={file?.name} className="size-full object-contain" />
+                ) : (
+                  <FileVideo className="size-16 text-purple-400" />
+                )}
+                <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                  <div className="flex size-10 items-center justify-center rounded-full bg-background/85 shadow-sm">
+                    <Play className="ml-0.5 size-4 fill-current" />
+                  </div>
+                </div>
+              </button>
             ) : category === 'audio' && url ? (
               <div className="flex flex-col items-center gap-3">
                 <FileAudio className="size-16 text-pink-400" />
@@ -75,10 +123,6 @@ export function FileDetail({ file, onClose }: FileDetailProps) {
                   <FileText className="size-16 text-blue-400" />
                 ) : category === 'archive' ? (
                   <FileArchive className="size-16 text-amber-400" />
-                ) : category === 'image' ? (
-                  <FileImage className="size-16 text-emerald-400" />
-                ) : category === 'video' ? (
-                  <FileVideo className="size-16 text-purple-400" />
                 ) : (
                   <File className="size-16 text-muted-foreground" />
                 )}
@@ -90,14 +134,11 @@ export function FileDetail({ file, onClose }: FileDetailProps) {
           </div>
 
           <div className="flex gap-2">
-            <Button className="flex-1 gap-2" onClick={handleDownload} disabled={!url}>
+            <Button className="flex-1 gap-2" onClick={handleDownload} disabled={!file}>
               <Download className="size-3.5" />
               Download
             </Button>
-            <Button variant="outline" size="icon" onClick={handleCopy} disabled={!url}>
-              <Link className="size-3.5" />
-            </Button>
-            {!readOnly && (
+            {canDelete && (
               <Button
                 variant="outline"
                 size="icon"
@@ -141,5 +182,28 @@ export function FileDetail({ file, onClose }: FileDetailProps) {
         </div>
       </SheetContent>
     </Sheet>
+
+    <Dialog open={isPreviewOpen} onOpenChange={(open) => !open && closePreview()}>
+      <DialogContent className="max-w-[min(96vw,1100px)] gap-3 p-3">
+        <DialogTitle className="truncate pr-8 text-sm">{file?.name}</DialogTitle>
+        <div className="flex max-h-[82vh] min-h-48 items-center justify-center overflow-hidden rounded-lg bg-black">
+          {category === 'image' && url ? (
+            <img src={url} alt={file?.name} className="max-h-[82vh] max-w-full object-contain" />
+          ) : category === 'video' && videoLoading ? (
+            <Skeleton className="h-64 w-full max-w-2xl rounded-none bg-muted/40" />
+          ) : category === 'video' && videoUrl ? (
+            <video
+              src={videoUrl}
+              controls
+              autoPlay
+              className="max-h-[82vh] w-full max-w-full"
+            />
+          ) : (
+            <FileVideo className="size-16 text-purple-400" />
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

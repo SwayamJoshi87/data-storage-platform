@@ -12,6 +12,14 @@ import { useFileBrowserStore } from '@/store/useFileBrowserStore';
 import { useFolderContents } from '@/hooks/useStorage';
 import type { StorageFile } from '@/hooks/useStorage';
 
+function readCognitoGroups(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((group): group is string => typeof group === 'string');
+  }
+
+  return typeof value === 'string' ? [value] : [];
+}
+
 function FileBrowserContent() {
   const {
     selectedFilePath,
@@ -31,17 +39,23 @@ function FileBrowserContent() {
     fetchAuthSession().then((session) => {
       if (session.identityId) setIdentityId(session.identityId);
 
-      // Try multiple token shapes to reliably detect Cognito groups
-      const groupsFromSession =
-        (session.tokens?.idToken?.payload?.['cognito:groups'] as string[] | undefined) ||
-        (session.idToken?.payload?.['cognito:groups'] as string[] | undefined);
+      const tokenPayloads = [
+        session.tokens?.idToken?.payload,
+        session.tokens?.accessToken?.payload,
+      ];
+      const groupsFromSession = tokenPayloads.flatMap((payload) =>
+        readCognitoGroups(payload?.['cognito:groups']),
+      );
 
       // Also check the Amplify UI 'user' object as a fallback
-      const groupsFromUser = (user as any)?.signInUserSession?.idToken?.payload?.[
-        'cognito:groups'
-      ] as string[] | undefined;
+      const legacyUser = user as {
+        signInUserSession?: { idToken?: { payload?: Record<string, unknown> } };
+      };
+      const groupsFromUser = readCognitoGroups(
+        legacyUser.signInUserSession?.idToken?.payload?.['cognito:groups'],
+      );
 
-      const isAdminFlag = [groupsFromSession, groupsFromUser].some((g) => g?.includes('admin'));
+      const isAdminFlag = [...groupsFromSession, ...groupsFromUser].includes('admin');
       setIsAdmin(Boolean(isAdminFlag));
     });
   }, [setIdentityId, setIsAdmin, user]);

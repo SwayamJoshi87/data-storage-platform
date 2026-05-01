@@ -1,9 +1,11 @@
 import { Skeleton } from '@/components/ui/skeleton';
 import { FolderOpen } from 'lucide-react';
 import { FileCard, FolderCard } from '@/components/files/FileCard';
+import { MediaViewer } from '@/components/files/MediaViewer';
 import { useFolderContents } from '@/hooks/useStorage';
 import { useDeleteFile } from '@/hooks/useStorage';
 import { useFileBrowserStore } from '@/store/useFileBrowserStore';
+import { getFileCategory } from '@/lib/fileUtils';
 import { cn } from '@/lib/utils';
 import type { StorageFile } from '@/hooks/useStorage';
 
@@ -46,6 +48,8 @@ export function FileGrid() {
     setCurrentPath,
     selectedFilePath,
     setSelectedFilePath,
+    mediaViewerPath,
+    setMediaViewerPath,
     viewMode,
     sortField,
     sortOrder,
@@ -78,6 +82,26 @@ export function FileGrid() {
       }
     : null;
 
+  const mediaFiles = filtered?.files.filter((file) => {
+    const category = getFileCategory(file.name);
+    return category === 'image' || category === 'video';
+  }) ?? [];
+
+  const openFile = (path: string) => {
+    const file = filtered?.files.find((item) => item.path === path);
+    const category = file ? getFileCategory(file.name) : 'other';
+    if (category === 'image' || category === 'video') {
+      setMediaViewerPath(path);
+      return;
+    }
+
+    setSelectedFilePath(path);
+  };
+
+  const showFileInfo = (path: string) => {
+    setSelectedFilePath(path);
+  };
+
   const isEmpty = filtered && filtered.folders.length === 0 && filtered.files.length === 0;
 
   if (error) {
@@ -91,6 +115,7 @@ export function FileGrid() {
 
   if (viewMode === 'grid') {
     return (
+      <>
       <div
         className={cn(
           'grid gap-3 p-4',
@@ -116,7 +141,8 @@ export function FileGrid() {
                 key={file.path}
                 file={file}
                 isSelected={selectedFilePath === file.path}
-                onSelect={setSelectedFilePath}
+                onOpen={openFile}
+                onInfo={showFileInfo}
                 onDelete={deleteFile}
                 viewMode="grid"
               />
@@ -124,10 +150,18 @@ export function FileGrid() {
           </>
         )}
       </div>
+      <MediaViewer
+        files={mediaFiles}
+        openPath={mediaViewerPath}
+        onOpenPathChange={setMediaViewerPath}
+        onShowInfo={showFileInfo}
+      />
+      </>
     );
   }
 
   return (
+    <>
     <div className="flex flex-col p-2">
       {isLoading ? (
         <ListSkeleton />
@@ -160,7 +194,8 @@ export function FileGrid() {
                   key={file.path}
                   file={file}
                   isSelected={selectedFilePath === file.path}
-                  onSelect={setSelectedFilePath}
+                  onOpen={openFile}
+                  onInfo={showFileInfo}
                   onDelete={deleteFile}
                   viewMode="list"
                 />
@@ -170,5 +205,12 @@ export function FileGrid() {
         </>
       )}
     </div>
+    <MediaViewer
+      files={mediaFiles}
+      openPath={mediaViewerPath}
+      onOpenPathChange={setMediaViewerPath}
+      onShowInfo={showFileInfo}
+    />
+    </>
   );
 }

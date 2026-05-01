@@ -3,7 +3,12 @@ import { Upload, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { uploadFile } from '@/hooks/useStorage';
-import { useFileBrowserStore, isReadOnlyPath } from '@/store/useFileBrowserStore';
+import {
+  createVideoThumbnail,
+  getThumbnailPath,
+  shouldGenerateThumbnail,
+} from '@/lib/thumbnailUtils';
+import { useFileBrowserStore, canWritePath } from '@/store/useFileBrowserStore';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface UploadZoneProps {
@@ -16,11 +21,22 @@ export function UploadZone({ children }: UploadZoneProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
-  const { currentPath, uploadQueue, addUpload, updateUpload, removeUpload, isAdmin } = useFileBrowserStore();
+  const {
+    currentPath,
+    uploadQueue,
+    addUpload,
+    updateUpload,
+    removeUpload,
+    isAdmin,
+    identityId,
+  } = useFileBrowserStore();
+
+  const canUpload = canWritePath(currentPath, { isAdmin, identityId });
 
   const processFiles = useCallback(
     async (files: FileList | File[]) => {
       const fileArray = Array.from(files);
+      if (!canUpload) return;
 
       for (const file of fileArray) {
         const id = crypto.randomUUID();
@@ -32,6 +48,16 @@ export function UploadZone({ children }: UploadZoneProps) {
           await uploadFile(targetPath, file, (pct) => {
             updateUpload(id, { progress: pct });
           });
+
+          if (shouldGenerateThumbnail(file)) {
+            try {
+              const thumbnail = await createVideoThumbnail(file);
+              await uploadFile(getThumbnailPath(targetPath), thumbnail, () => {});
+            } catch (thumbnailError) {
+              console.warn('Unable to generate video thumbnail', thumbnailError);
+            }
+          }
+
           updateUpload(id, { status: 'done', progress: 100 });
           qc.invalidateQueries({ queryKey: ['storage', 'list', currentPath] });
           setTimeout(() => removeUpload(id), 3000);
@@ -44,32 +70,30 @@ export function UploadZone({ children }: UploadZoneProps) {
         }
       }
     },
-    [currentPath, addUpload, updateUpload, removeUpload, qc],
+    [currentPath, canUpload, addUpload, updateUpload, removeUpload, qc],
   );
 
-  const readOnly = isReadOnlyPath(currentPath, isAdmin);
-
   const onDragEnter = (e: React.DragEvent) => {
-    if (readOnly) return;
+    if (!canUpload) return;
     e.preventDefault();
     dragCounter.current++;
     if (e.dataTransfer.items && e.dataTransfer.items.length > 0) setIsDragging(true);
   };
 
   const onDragLeave = (e: React.DragEvent) => {
-    if (readOnly) return;
+    if (!canUpload) return;
     e.preventDefault();
     dragCounter.current--;
     if (dragCounter.current === 0) setIsDragging(false);
   };
 
   const onDragOver = (e: React.DragEvent) => {
-    if (readOnly) return;
+    if (!canUpload) return;
     e.preventDefault();
   };
 
   const onDrop = (e: React.DragEvent) => {
-    if (readOnly) return;
+    if (!canUpload) return;
     e.preventDefault();
     setIsDragging(false);
     dragCounter.current = 0;
@@ -79,7 +103,7 @@ export function UploadZone({ children }: UploadZoneProps) {
   };
 
   const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (readOnly) return;
+    if (!canUpload) return;
     if (e.target.files && e.target.files.length > 0) {
       processFiles(e.target.files);
       e.target.value = '';
