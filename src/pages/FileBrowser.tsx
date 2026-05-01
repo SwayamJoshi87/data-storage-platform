@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AppSidebar } from '@/components/layout/AppSidebar';
@@ -14,16 +15,28 @@ import type { StorageFile } from '@/hooks/useStorage';
 function FileBrowserContent() {
   const { selectedFilePath, setSelectedFilePath, currentPath, setIdentityId, setIsAdmin } =
     useFileBrowserStore();
+  const { user } = useAuthenticator();
   const { trigger: triggerUpload } = useUploadTrigger();
   const { data } = useFolderContents(currentPath);
 
   useEffect(() => {
     fetchAuthSession().then((session) => {
       if (session.identityId) setIdentityId(session.identityId);
-      const groups = session.tokens?.idToken?.payload['cognito:groups'] as string[] | undefined;
-      setIsAdmin(groups?.includes('admin') ?? false);
+
+      // Try multiple token shapes to reliably detect Cognito groups
+      const groupsFromSession =
+        (session.tokens?.idToken?.payload?.['cognito:groups'] as string[] | undefined) ||
+        (session.idToken?.payload?.['cognito:groups'] as string[] | undefined);
+
+      // Also check the Amplify UI 'user' object as a fallback
+      const groupsFromUser = (user as any)?.signInUserSession?.idToken?.payload?.['cognito:groups'] as
+        | string[]
+        | undefined;
+
+      const isAdminFlag = [groupsFromSession, groupsFromUser].some((g) => g?.includes('admin'));
+      setIsAdmin(Boolean(isAdminFlag));
     });
-  }, [setIdentityId, setIsAdmin]);
+  }, [setIdentityId, setIsAdmin, user]);
 
   const selectedFile: StorageFile | null =
     data?.files.find((f) => f.path === selectedFilePath) ?? null;
