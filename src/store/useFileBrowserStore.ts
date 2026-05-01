@@ -59,7 +59,32 @@ export function canWritePath(path: string, { isAdmin, identityId }: AccessContex
   return false;
 }
 
-export const useFileBrowserStore = create<FileBrowserState>((set) => ({
+// ---------------------------------------------------------------------------
+// URL hash helpers — encode/decode navigation state so the browser's
+// back/forward buttons work within the app.
+// ---------------------------------------------------------------------------
+
+export function buildUrlHash(path: string, viewer: string | null): string {
+  const params = new URLSearchParams();
+  params.set('p', path);
+  if (viewer) params.set('v', viewer);
+  return '#' + params.toString();
+}
+
+export function parseUrlHash(hash: string): { path: string | null; viewer: string | null } {
+  const str = hash.startsWith('#') ? hash.slice(1) : hash;
+  const params = new URLSearchParams(str);
+  return { path: params.get('p'), viewer: params.get('v') };
+}
+
+function getInitialStateFromUrl(): { currentPath?: string; mediaViewerPath?: string | null } {
+  if (typeof window === 'undefined') return {};
+  const { path, viewer } = parseUrlHash(window.location.hash);
+  if (!path) return {};
+  return { currentPath: path, mediaViewerPath: viewer ?? null };
+}
+
+export const useFileBrowserStore = create<FileBrowserState>()((set, get) => ({
   currentPath: 'public/',
   selectedFilePath: null,
   mediaViewerPath: null,
@@ -71,10 +96,24 @@ export const useFileBrowserStore = create<FileBrowserState>((set) => ({
   identityId: null,
   isAdmin: false,
   clipboardPaths: [],
+  // Override defaults with any path/viewer encoded in the URL
+  ...getInitialStateFromUrl(),
 
-  setCurrentPath: (path) => set({ currentPath: path, selectedFilePath: null, mediaViewerPath: null }),
+  setCurrentPath: (path) => {
+    history.pushState({ path, viewer: null }, '', buildUrlHash(path, null));
+    set({ currentPath: path, selectedFilePath: null, mediaViewerPath: null });
+  },
   setSelectedFilePath: (path) => set({ selectedFilePath: path }),
-  setMediaViewerPath: (path) => set({ mediaViewerPath: path }),
+  setMediaViewerPath: (path) => {
+    const currentPath = get().currentPath;
+    if (path) {
+      history.pushState({ path: currentPath, viewer: path }, '', buildUrlHash(currentPath, path));
+    } else {
+      // Closing the viewer: replace so back doesn't reopen it
+      history.replaceState({ path: currentPath, viewer: null }, '', buildUrlHash(currentPath, null));
+    }
+    set({ mediaViewerPath: path });
+  },
   setViewMode: (mode) => set({ viewMode: mode }),
   setSortField: (field) => set({ sortField: field }),
   setSortOrder: (order) => set({ sortOrder: order }),
