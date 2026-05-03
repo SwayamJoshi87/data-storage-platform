@@ -1,9 +1,10 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { vaults } from './routes/vaults'
-import { files } from './routes/files'
+import { vaultsRouter } from './routes/vaults'
+import { filesRouter } from './routes/files'
 import { retrievals } from './routes/retrievals'
 import { billing } from './routes/billing'
+import { usageRouter } from './routes/usage'
 import { clerkWebhook } from './routes/webhooks/clerk'
 import { stripeWebhook } from './routes/webhooks/stripe'
 
@@ -16,10 +17,11 @@ app.use('/api/*', cors({
 
 app.get('/api/health', (c) => c.json({ ok: true }))
 
-app.route('/api/vaults', vaults)
-app.route('/api/files', files)
+app.route('/api/vaults', vaultsRouter)
+app.route('/api/files', filesRouter)
 app.route('/api/retrievals', retrievals)
 app.route('/api/billing', billing)
+app.route('/api/usage', usageRouter)
 app.post('/api/webhooks/clerk', clerkWebhook)
 app.post('/api/webhooks/stripe', stripeWebhook)
 
