@@ -1,7 +1,5 @@
-// @ts-nocheck — migrated in Step 2/7/8
 import { useEffect } from 'react';
-import { fetchAuthSession } from 'aws-amplify/auth';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useUser } from '@clerk/clerk-react';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AppSidebar } from '@/components/layout/AppSidebar';
@@ -13,14 +11,6 @@ import { useFileBrowserStore } from '@/store/useFileBrowserStore';
 import { useFolderContents } from '@/hooks/useStorage';
 import type { StorageFile } from '@/hooks/useStorage';
 
-function readCognitoGroups(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.filter((group): group is string => typeof group === 'string');
-  }
-
-  return typeof value === 'string' ? [value] : [];
-}
-
 function FileBrowserContent() {
   const {
     selectedFilePath,
@@ -31,35 +21,16 @@ function FileBrowserContent() {
     setIdentityId,
     setIsAdmin,
   } = useFileBrowserStore();
-  const { user } = useAuthenticator();
+  const { user, isLoaded } = useUser();
   const { trigger: triggerUpload } = useUploadTrigger();
   const resolvedPath = currentPath === 'private/' && !identityId ? '' : currentPath;
   const { data } = useFolderContents(resolvedPath);
 
   useEffect(() => {
-    fetchAuthSession().then((session) => {
-      if (session.identityId) setIdentityId(session.identityId);
-
-      const tokenPayloads = [
-        session.tokens?.idToken?.payload,
-        session.tokens?.accessToken?.payload,
-      ];
-      const groupsFromSession = tokenPayloads.flatMap((payload) =>
-        readCognitoGroups(payload?.['cognito:groups']),
-      );
-
-      // Also check the Amplify UI 'user' object as a fallback
-      const legacyUser = user as {
-        signInUserSession?: { idToken?: { payload?: Record<string, unknown> } };
-      };
-      const groupsFromUser = readCognitoGroups(
-        legacyUser.signInUserSession?.idToken?.payload?.['cognito:groups'],
-      );
-
-      const isAdminFlag = [...groupsFromSession, ...groupsFromUser].includes('admin');
-      setIsAdmin(Boolean(isAdminFlag));
-    });
-  }, [setIdentityId, setIsAdmin, user]);
+    if (!isLoaded || !user) return;
+    setIdentityId(user.id);
+    setIsAdmin(user.publicMetadata?.isAdmin === true);
+  }, [isLoaded, user, setIdentityId, setIsAdmin]);
 
   useEffect(() => {
     if (identityId && currentPath === 'private/') {
