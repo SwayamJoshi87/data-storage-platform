@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
-import { fetchAuthSession } from 'aws-amplify/auth';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useUser } from '@clerk/clerk-react';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AppSidebar } from '@/components/layout/AppSidebar';
@@ -12,14 +11,6 @@ import { useFileBrowserStore, buildUrlHash, parseUrlHash } from '@/store/useFile
 import { useFolderContents } from '@/hooks/useStorage';
 import type { StorageFile } from '@/hooks/useStorage';
 
-function readCognitoGroups(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.filter((group): group is string => typeof group === 'string');
-  }
-
-  return typeof value === 'string' ? [value] : [];
-}
-
 function FileBrowserContent() {
   const {
     selectedFilePath,
@@ -29,26 +20,25 @@ function FileBrowserContent() {
     setIdentityId,
     setIsAdmin,
   } = useFileBrowserStore();
-  const { user } = useAuthenticator();
+  const { user } = useUser();
   const { trigger: triggerUpload } = useUploadTrigger();
   const resolvedPath = currentPath === 'private/' && !identityId ? '' : currentPath;
   const { data } = useFolderContents(resolvedPath);
 
-  // Stamp the initial history entry with state so popstate can restore it.
+  // Stamp the initial history entry so popstate can restore it.
   useEffect(() => {
     const { path, viewer } = parseUrlHash(window.location.hash);
     const p = path ?? currentPath;
     const v = viewer ?? null;
     history.replaceState({ path: p, viewer: v }, '', buildUrlHash(p, v));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle browser back/forward by restoring state from the history entry.
+  // Handle browser back/forward.
   useEffect(() => {
     const handlePop = (e: PopStateEvent) => {
       const state = e.state as { path: string; viewer: string | null } | null;
       if (state?.path) {
-        // Bypass store actions (which push new history entries) — set state directly.
         useFileBrowserStore.setState({
           currentPath: state.path,
           mediaViewerPath: state.viewer ?? null,
@@ -60,33 +50,16 @@ function FileBrowserContent() {
     return () => window.removeEventListener('popstate', handlePop);
   }, []);
 
+  // Derive identity + admin flag from Clerk user.
+  // Admin role is set via Clerk Dashboard → user publicMetadata: { role: "admin" }
   useEffect(() => {
-    fetchAuthSession().then((session) => {
-      if (session.identityId) setIdentityId(session.identityId);
-
-      const tokenPayloads = [
-        session.tokens?.idToken?.payload,
-        session.tokens?.accessToken?.payload,
-      ];
-      const groupsFromSession = tokenPayloads.flatMap((payload) =>
-        readCognitoGroups(payload?.['cognito:groups']),
-      );
-
-      // Also check the Amplify UI 'user' object as a fallback
-      const legacyUser = user as {
-        signInUserSession?: { idToken?: { payload?: Record<string, unknown> } };
-      };
-      const groupsFromUser = readCognitoGroups(
-        legacyUser.signInUserSession?.idToken?.payload?.['cognito:groups'],
-      );
-
-      const isAdminFlag = [...groupsFromSession, ...groupsFromUser].includes('admin');
-      setIsAdmin(Boolean(isAdminFlag));
-    });
-  }, [setIdentityId, setIsAdmin, user]);
+    if (!user) return;
+    setIdentityId(user.id);
+    const isAdminFlag = (user.publicMetadata as { role?: string })?.role === 'admin';
+    setIsAdmin(Boolean(isAdminFlag));
+  }, [user, setIdentityId, setIsAdmin]);
 
   // Redirect private/ → private/{identityId}/ once the identity resolves.
-  // Use replaceState so this silent redirect doesn't create a history entry.
   useEffect(() => {
     if (identityId && currentPath === 'private/') {
       const newPath = `private/${identityId}/`;

@@ -11,7 +11,7 @@ import {
   Shield,
   FolderPlus,
 } from 'lucide-react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useUser, useClerk } from '@clerk/clerk-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,7 +50,8 @@ interface TopbarProps {
 }
 
 export function Topbar({ onUploadClick }: TopbarProps) {
-  const { user, signOut } = useAuthenticator();
+  const { user } = useUser();
+  const { signOut } = useClerk();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
@@ -68,7 +69,8 @@ export function Topbar({ onUploadClick }: TopbarProps) {
   } = useFileBrowserStore();
 
   const crumbs = buildBreadcrumbs(currentPath, identityId);
-  const rawName = user?.signInDetails?.loginId ?? user?.username ?? '';
+  const rawName =
+    user?.primaryEmailAddress?.emailAddress ?? user?.username ?? '';
   const userInitial = (rawName[0] ?? 'U').toUpperCase();
   const canUpload = canWritePath(currentPath, { isAdmin, identityId });
 
