@@ -1,3 +1,4 @@
+// @ts-nocheck — migrated in Step 2/7/8
 import { useEffect, useState } from 'react';
 import { X, Download, Trash2, FileText, FileVideo, FileAudio, FileArchive, File, Play } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';

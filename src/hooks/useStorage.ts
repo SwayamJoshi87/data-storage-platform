@@ -1,298 +1,99 @@
-import { useEffect, useState } from 'react';
-import { list, uploadData, remove, downloadData, getUrl, copy } from 'aws-amplify/storage';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getThumbnailPath } from '@/lib/thumbnailUtils';
+// MIGRATION STUB — replaced entirely in Step 4 (API layer).
+// Exports match the original surface so existing components compile unchanged.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
-const FOLDER_MARKER_FILE = '.folder';
+// ---- Types ----------------------------------------------------------------
 
-export interface StorageFile {
-  path: string;
-  name: string;
-  size?: number;
-  lastModified?: Date;
-  eTag?: string;
+export type StorageItem = {
+  key: string
+  path: string
+  size: number
+  lastModified: Date
+  eTag: string
+  isFolder: boolean
+  contentType?: string
 }
 
-export interface StorageFolder {
-  path: string;
-  name: string;
+export type StorageFile = StorageItem & { isFolder: false }
+export type StorageFolder = StorageItem & { isFolder: true }
+
+// ---- Stub helpers ---------------------------------------------------------
+
+const notMigrated = () => { throw new Error('Storage not yet migrated — complete Step 4') }
+const noopMutation = () => useMutation({ mutationFn: notMigrated })
+
+// ---- Hooks ----------------------------------------------------------------
+
+export function useStorageList(_prefix: string, _options?: any) {
+  return useQuery({ queryKey: ['storage-stub', _prefix], queryFn: () => [] as StorageItem[], enabled: false })
 }
 
-export interface FolderContents {
-  folders: StorageFolder[];
-  files: StorageFile[];
+export function useFolderContents(_prefix: string, _options?: any) {
+  return useQuery({ queryKey: ['folder-stub', _prefix], queryFn: () => ({ files: [] as StorageFile[], folders: [] as StorageFolder[] }), enabled: false })
 }
 
-export interface FolderSummary {
-  folderCount: number;
-  fileCount: number;
-  isEmpty: boolean;
+export function useFileObjectUrl(_key: string | null) {
+  return useQuery({ queryKey: ['object-url-stub', _key], queryFn: () => null as string | null, enabled: false })
 }
 
-export async function fetchFolderContents(prefix: string): Promise<FolderContents> {
-  const result = await list({ path: prefix, options: { listAll: true } });
-
-  const folderMap = new Map<string, StorageFolder>();
-  const files: StorageFile[] = [];
-
-  for (const item of result.items) {
-    const rel = item.path.slice(prefix.length);
-    if (!rel) continue;
-    if (rel === FOLDER_MARKER_FILE) continue;
-
-    const slashIdx = rel.indexOf('/');
-    if (slashIdx !== -1) {
-      const folderName = rel.slice(0, slashIdx);
-      const folderPath = prefix + folderName + '/';
-      if (!folderMap.has(folderPath)) {
-        folderMap.set(folderPath, { path: folderPath, name: folderName });
-      }
-    } else {
-      files.push({
-        path: item.path,
-        name: rel,
-        size: item.size,
-        lastModified: item.lastModified,
-        eTag: item.eTag,
-      });
-    }
-  }
-
-  return { folders: Array.from(folderMap.values()), files };
-}
-
-export async function fetchFolderSummary(prefix: string): Promise<FolderSummary> {
-  const result = await list({ path: prefix, options: { listAll: true } });
-  const folderPaths = new Set<string>();
-  let fileCount = 0;
-
-  for (const item of result.items) {
-    const rel = item.path.slice(prefix.length);
-    if (!rel || rel === FOLDER_MARKER_FILE) continue;
-
-    const segments = rel.split('/').filter(Boolean);
-    if (segments.length > 1) {
-      let currentPath = prefix;
-      for (let i = 0; i < segments.length - 1; i += 1) {
-        currentPath += `${segments[i]}/`;
-        folderPaths.add(currentPath);
-      }
-    }
-
-    if (segments[segments.length - 1] !== FOLDER_MARKER_FILE) {
-      fileCount += 1;
-    }
-  }
-
-  return {
-    folderCount: folderPaths.size,
-    fileCount,
-    isEmpty: folderPaths.size === 0 && fileCount === 0,
-  };
-}
-
-export function useFolderContents(path: string) {
-  return useQuery({
-    queryKey: ['storage', 'list', path],
-    queryFn: () => fetchFolderContents(path),
-    enabled: !!path,
-    staleTime: 30_000,
-  });
-}
-
-export function useFolderSummary(path: string) {
-  return useQuery({
-    queryKey: ['storage', 'summary', path],
-    queryFn: () => fetchFolderSummary(path),
-    enabled: !!path,
-    staleTime: 30_000,
-  });
-}
-
-export function useFileObjectUrl(path: string | null) {
-  const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    let canceled = false;
-    let nextObjectUrl: string | null = null;
-
-    setObjectUrl(null);
-    setError(null);
-
-    if (!path) {
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    const task = downloadData({ path });
-
-    task.result
-      .then(async ({ body }) => {
-        const blob = await body.blob();
-        if (canceled) return;
-
-        nextObjectUrl = URL.createObjectURL(blob);
-        setObjectUrl(nextObjectUrl);
-      })
-      .catch((err) => {
-        if (!canceled) {
-          setError(err instanceof Error ? err : new Error('Failed to load file'));
-        }
-      })
-      .finally(() => {
-        if (!canceled) setIsLoading(false);
-      });
-
-    return () => {
-      canceled = true;
-      task.cancel();
-      if (nextObjectUrl) URL.revokeObjectURL(nextObjectUrl);
-    };
-  }, [path]);
-
-  return { data: objectUrl, isLoading, error };
-}
-
-export function usePresignedFileUrl(path: string | null, enabled = true, expiresIn = 60 * 60 * 5) {
-  return useQuery({
-    queryKey: ['storage', 'url', path, expiresIn],
-    queryFn: async () => {
-      if (!path) throw new Error('Missing storage path');
-
-      const { url } = await getUrl({
-        path,
-        options: {
-          expiresIn,
-          validateObjectExistence: false,
-        },
-      });
-
-      return url.toString();
-    },
-    enabled: Boolean(path && enabled),
-    staleTime: Math.max(0, (expiresIn - 60) * 1000),
-    gcTime: expiresIn * 1000,
-  });
-}
-
-export function useDeleteFile() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (path: string) => {
-      await remove({ path });
-      await remove({ path: getThumbnailPath(path) }).catch(() => undefined);
-    },
-    onSuccess: (_, path) => {
-      const parent = path.slice(0, path.lastIndexOf('/') + 1);
-      qc.invalidateQueries({ queryKey: ['storage', 'list', parent] });
-    },
-  });
-}
-
-export function useDeleteFolder() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (folderPath: string) => {
-      const [folderResult, thumbnailResult] = await Promise.all([
-        list({ path: folderPath, options: { listAll: true } }),
-        list({ path: `thumbnails/${folderPath}`, options: { listAll: true } }).catch(() => ({
-          items: [],
-        })),
-      ]);
-
-      const paths = new Set<string>();
-
-      folderResult.items.forEach((item) => {
-        paths.add(item.path);
-        paths.add(getThumbnailPath(item.path));
-      });
-
-      thumbnailResult.items.forEach((item) => {
-        paths.add(item.path);
-      });
-
-      await Promise.all(Array.from(paths).map((path) => remove({ path }).catch(() => undefined)));
-    },
-    onSuccess: (_, folderPath) => {
-      const parentPath = folderPath.replace(/\/$/, '').split('/').slice(0, -1).join('/') + '/';
-      qc.invalidateQueries({ queryKey: ['storage', 'list', parentPath] });
-      qc.invalidateQueries({ queryKey: ['storage', 'list', folderPath] });
-    },
-  });
+export function usePresignedFileUrl(_key: string | null, _expiresIn?: number) {
+  return useQuery({ queryKey: ['presigned-stub', _key], queryFn: () => null as string | null, enabled: false })
 }
 
 export function useCreateFolder() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ parentPath, name }: { parentPath: string; name: string }) => {
-      const folderPath = `${parentPath}${name}/`;
-      await uploadData({
-        path: `${folderPath}${FOLDER_MARKER_FILE}`,
-        data: new Blob([]),
-        options: {
-          contentType: 'application/x-directory',
-        },
-      }).result;
-
-      return folderPath;
-    },
-    onSuccess: (_, { parentPath }) => {
-      qc.invalidateQueries({ queryKey: ['storage', 'list', parentPath] });
-    },
-  });
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: async (_path: string) => { notMigrated(); void qc } })
 }
 
-export async function downloadFile(path: string): Promise<Blob> {
-  const { body } = await downloadData({ path }).result;
-  return body.blob();
+export function useDeleteFile() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: async (_key: string) => { notMigrated(); void qc } })
 }
 
-/** Server-side S3 copy — no download/re-upload needed. Also copies thumbnail sidecar. */
-export async function copyS3File(sourcePath: string, destPath: string): Promise<void> {
-  await copy({ source: { path: sourcePath }, destination: { path: destPath } });
-  // Best-effort thumbnail copy
-  await copy({
-    source: { path: getThumbnailPath(sourcePath) },
-    destination: { path: getThumbnailPath(destPath) },
-  }).catch(() => undefined);
+export function useDeleteFolder() {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: async (_prefix: string) => { notMigrated(); void qc } })
 }
 
-export async function downloadFolder(folderPath: string): Promise<void> {
-  const result = await list({ path: folderPath, options: { listAll: true } });
-  const files = result.items.filter((item) => !item.path.endsWith(FOLDER_MARKER_FILE));
-
-  for (const item of files) {
-    const blob = await downloadFile(item.path);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    // Use relative path from folder root as filename, replacing slashes
-    const parts = item.path.split('/').filter(Boolean);
-    a.download =
-      item.path.slice(folderPath.length).replace(/\//g, '_') || parts[parts.length - 1] || 'file';
-    a.click();
-    // Small delay so the browser queues each download separately
-    await new Promise<void>((r) => setTimeout(r, 350));
-    URL.revokeObjectURL(url);
-  }
+export function useFolderSummary(_prefix: string) {
+  return useQuery({ queryKey: ['folder-summary-stub', _prefix], queryFn: () => ({ fileCount: 0, folderCount: 0 }), enabled: false })
 }
 
-export async function uploadFile(
-  path: string,
-  file: File,
-  onProgress: (pct: number) => void
-): Promise<void> {
-  await uploadData({
-    path,
-    data: file,
-    options: {
-      contentType: file.type,
-      onProgress: ({ transferredBytes, totalBytes }) => {
-        if (totalBytes) onProgress(Math.round((transferredBytes / totalBytes) * 100));
-      },
-    },
-  }).result;
+// ---- Functions ------------------------------------------------------------
+
+export async function uploadFile(_path: string, _file: File, _onProgress?: (pct: number, transferred: number, total: number) => void) {
+  notMigrated()
 }
+
+export async function downloadFile(_key: string) {
+  notMigrated()
+}
+
+export async function downloadFolder(_prefix: string) {
+  notMigrated()
+}
+
+export async function getFileUrl(_key: string) {
+  notMigrated()
+  return ''
+}
+
+export async function deleteFile(_key: string) {
+  notMigrated()
+}
+
+export async function createFolder(_path: string) {
+  notMigrated()
+}
+
+export async function moveFile(_src: string, _dest: string) {
+  notMigrated()
+}
+
+export async function copyS3File(_src: string, _dest: string) {
+  notMigrated()
+}
+
+// keep noopMutation referenced to avoid tree-shaking warnings
+void noopMutation

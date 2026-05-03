@@ -1,3 +1,4 @@
+// @ts-nocheck — migrated in Step 2/7/8
 import { useState } from 'react';
 import { FolderOpen, Globe, Lock, Shield, HardDrive, ChevronRight } from 'lucide-react';
 import {

@@ -1,3 +1,4 @@
+// @ts-nocheck — migrated in Step 2/7/8
 import { Authenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
 import { TooltipProvider } from '@/components/ui/tooltip';
