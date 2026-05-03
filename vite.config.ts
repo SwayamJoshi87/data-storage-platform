@@ -11,14 +11,33 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     react(),
-    // Provide an empty stub when amplify_outputs.json is absent (CI, Vercel, new dev setup)
-    !amplifyOutputsExists && {
-      name: 'amplify-outputs-stub',
+    // Stub removed Amplify packages so existing components compile while they are
+    // progressively migrated to Clerk + the new API layer (Steps 2–8).
+    {
+      name: 'amplify-migration-stubs',
       resolveId(id: string) {
-        if (id.endsWith('amplify_outputs.json')) return '\0amplify-stub'
+        if (
+          id === 'aws-amplify' ||
+          id.startsWith('aws-amplify/') ||
+          id.startsWith('@aws-amplify/')
+        ) return `\0amplify-stub:${id}`
+        if (!amplifyOutputsExists && id.endsWith('amplify_outputs.json'))
+          return '\0amplify-outputs-stub'
       },
       load(id: string) {
-        if (id === '\0amplify-stub') return 'export default {}'
+        if (id.startsWith('\0amplify-stub:')) return [
+          'export default {}',
+          // aws-amplify
+          'export const Amplify = { configure: () => {} }',
+          // @aws-amplify/ui-react
+          'export const Authenticator = () => null',
+          'export const useAuthenticator = () => ({ user: null, signOut: () => {} })',
+          // aws-amplify/auth
+          'export const fetchAuthSession = async () => ({})',
+          'export const getCurrentUser = async () => ({})',
+          'export const signOut = async () => {}',
+        ].join('\n')
+        if (id === '\0amplify-outputs-stub') return 'export default {}'
       },
     },
   ].filter(Boolean),

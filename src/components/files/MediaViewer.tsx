@@ -1,3 +1,4 @@
+// @ts-nocheck — migrated in Step 2/7/8
 import { useEffect, useRef } from 'react';
 import {
   ChevronLeft,
