@@ -1,4 +1,3 @@
-// @ts-nocheck — migrated in Step 2/7/8
 import { useState } from 'react';
 import { FolderOpen, Globe, Lock, Shield, HardDrive, ChevronRight } from 'lucide-react';
 import {
@@ -91,7 +90,7 @@ function SidebarFolderItem({ folder, depth = 0 }: { folder: RootFolder; depth?: 
                   className="h-8 w-full gap-2"
                 >
                   <FolderOpen className={cn('size-3.5 shrink-0', depth === 0 && 'text-muted-foreground')} />
-                  <span className="truncate">{sub.name}</span>
+                  <span className="truncate">{sub.path.replace(/\/$/, '').split('/').pop()}</span>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
             ))}
