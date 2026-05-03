@@ -1,0 +1,145 @@
+{
+  "auth": {
+    "user_pool_id": "us-east-1_xmvOe941j",
+    "aws_region": "us-east-1",
+    "user_pool_client_id": "1ibo9ptqe9g928uebnermp89iv",
+    "identity_pool_id": "us-east-1:bd44c9b3-e0d2-4645-b525-7fb5d6424de9",
+    "mfa_methods": [],
+    "standard_required_attributes": [
+      "email"
+    ],
+    "username_attributes": [
+      "email"
+    ],
+    "user_verification_types": [
+      "email"
+    ],
+    "groups": [
+      {
+        "admin": {
+          "precedence": 0
+        }
+      }
+    ],
+    "mfa_configuration": "NONE",
+    "password_policy": {
+      "min_length": 8,
+      "require_lowercase": true,
+      "require_numbers": true,
+      "require_symbols": true,
+      "require_uppercase": true
+    },
+    "unauthenticated_identities_enabled": true
+  },
+  "storage": {
+    "aws_region": "us-east-1",
+    "bucket_name": "amplify-sampleamplifystora-mystoragebucket472d5355-m7k24hfmmpk1",
+    "buckets": [
+      {
+        "name": "myStorageBucket",
+        "bucket_name": "amplify-sampleamplifystora-mystoragebucket472d5355-m7k24hfmmpk1",
+        "aws_region": "us-east-1",
+        "paths": {
+          "public/*": {
+            "guest": [
+              "get",
+              "list"
+            ],
+            "authenticated": [
+              "get",
+              "list"
+            ],
+            "groupsadmin": [
+              "get",
+              "list",
+              "write",
+              "delete"
+            ]
+          },
+          "admin/*": {
+            "groupsadmin": [
+              "get",
+              "list",
+              "write",
+              "delete"
+            ]
+          },
+          "private/${cognito-identity.amazonaws.com:sub}/*": {
+            "entityidentity": [
+              "get",
+              "list",
+              "write",
+              "delete"
+            ]
+          },
+          "thumbnails/public/*": {
+            "guest": [
+              "get",
+              "list"
+            ],
+            "authenticated": [
+              "get",
+              "list"
+            ],
+            "groupsadmin": [
+              "get",
+              "list",
+              "write",
+              "delete"
+            ]
+          },
+          "thumbnails/admin/*": {
+            "groupsadmin": [
+              "get",
+              "list",
+              "write",
+              "delete"
+            ]
+          },
+          "thumbnails/private/${cognito-identity.amazonaws.com:sub}/*": {
+            "entityidentity": [
+              "get",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        }
+      },
+      {
+        "name": "mySecondaryStorageBucket",
+        "bucket_name": "amplify-sampleamplifystor-mysecondarystoragebucket-3tccngqlyp6z",
+        "aws_region": "us-east-1",
+        "paths": {
+          "backup_public/*": {
+            "guest": [
+              "get",
+              "list"
+            ],
+            "authenticated": [
+              "get",
+              "list"
+            ]
+          },
+          "backup_admin/*": {
+            "groupsadmin": [
+              "get",
+              "list",
+              "write",
+              "delete"
+            ]
+          },
+          "backup_private/${cognito-identity.amazonaws.com:sub}/*": {
+            "entityidentity": [
+              "get",
+              "list",
+              "write",
+              "delete"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "version": "1.3"
+}

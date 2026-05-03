@@ -18,7 +18,10 @@ import { createVideoThumbnail, getThumbnailPath, shouldGenerateThumbnail } from 
 import { useFileBrowserStore, canWritePath, type UploadItem } from '@/store/useFileBrowserStore';
 import { useQueryClient } from '@tanstack/react-query';
 
-const CONCURRENCY = 3;
+// Scale concurrency to the device's logical CPU count — a reasonable proxy for
+// overall capability. navigator.hardwareConcurrency is supported in all modern
+// browsers. Floor at 4 (covers low-end devices), cap at 25 per user request.
+const CONCURRENCY = Math.min(25, Math.max(4, navigator.hardwareConcurrency ?? 4));
 const WORKER_STAGGER_MS = 400;
 
 // ---------------------------------------------------------------------------

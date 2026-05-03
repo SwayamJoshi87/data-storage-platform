@@ -22,17 +22,23 @@ import type { StorageFile } from '@/hooks/useStorage';
 // ---------------------------------------------------------------------------
 // Filmstrip thumbnail — one per media file
 // ---------------------------------------------------------------------------
+const FILMSTRIP_WINDOW = 15;
+
 function ThumbItem({
   file,
   isActive,
+  shouldLoad,
   onClick,
 }: {
   file: StorageFile;
   isActive: boolean;
+  shouldLoad: boolean;
   onClick: () => void;
 }) {
   const category = getFileCategory(file.name);
-  const thumbPath = category === 'video' ? getThumbnailPath(file.path) : file.path;
+  const thumbPath = shouldLoad
+    ? (category === 'video' ? getThumbnailPath(file.path) : file.path)
+    : null;
   const { data: thumbUrl } = useFileObjectUrl(thumbPath);
   const ref = useRef<HTMLButtonElement>(null);
 
@@ -305,6 +311,7 @@ export function MediaViewer({ files, openPath, onOpenPathChange, onShowInfo }: M
                 key={file.path}
                 file={file}
                 isActive={index === currentIndex}
+                shouldLoad={Math.abs(index - currentIndex) <= FILMSTRIP_WINDOW}
                 onClick={() => onOpenPathChange(file.path)}
               />
             ))}

@@ -3,6 +3,33 @@ import { list, uploadData, remove, downloadData, getUrl, copy } from 'aws-amplif
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getThumbnailPath } from '@/lib/thumbnailUtils';
 
+// ---------------------------------------------------------------------------
+// In-memory blob cache — avoids re-downloading the same file on every remount.
+// Key: S3 path. Value: Promise<Blob> (kept alive for the session).
+// Max 300 entries; oldest entry evicted when full (insertion-order Map).
+// ---------------------------------------------------------------------------
+const BLOB_CACHE_MAX = 300;
+const blobCache = new Map<string, Promise<Blob>>();
+
+function getCachedBlob(path: string): Promise<Blob> {
+  if (blobCache.has(path)) return blobCache.get(path)!;
+
+  if (blobCache.size >= BLOB_CACHE_MAX) {
+    const oldest = blobCache.keys().next().value;
+    if (oldest !== undefined) blobCache.delete(oldest);
+  }
+
+  const promise = downloadData({ path })
+    .result.then(({ body }) => body.blob())
+    .catch((err: unknown) => {
+      blobCache.delete(path);
+      throw err;
+    });
+
+  blobCache.set(path, promise);
+  return promise;
+}
+
 const FOLDER_MARKER_FILE = '.folder';
 
 export interface StorageFile {
@@ -127,17 +154,14 @@ export function useFileObjectUrl(path: string | null) {
     }
 
     setIsLoading(true);
-    const task = downloadData({ path });
 
-    task.result
-      .then(async ({ body }) => {
-        const blob = await body.blob();
+    getCachedBlob(path)
+      .then((blob) => {
         if (canceled) return;
-
         nextObjectUrl = URL.createObjectURL(blob);
         setObjectUrl(nextObjectUrl);
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         if (!canceled) {
           setError(err instanceof Error ? err : new Error('Failed to load file'));
         }
@@ -148,7 +172,6 @@ export function useFileObjectUrl(path: string | null) {
 
     return () => {
       canceled = true;
-      task.cancel();
       if (nextObjectUrl) URL.revokeObjectURL(nextObjectUrl);
     };
   }, [path]);

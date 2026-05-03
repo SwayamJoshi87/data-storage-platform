@@ -8,7 +8,7 @@ import { Topbar } from '@/components/layout/Topbar';
 import { FileGrid } from '@/components/files/FileGrid';
 import { FileDetail } from '@/components/files/FileDetail';
 import { UploadZone, useUploadTrigger } from '@/components/files/UploadZone';
-import { useFileBrowserStore } from '@/store/useFileBrowserStore';
+import { useFileBrowserStore, buildUrlHash, parseUrlHash } from '@/store/useFileBrowserStore';
 import { useFolderContents } from '@/hooks/useStorage';
 import type { StorageFile } from '@/hooks/useStorage';
 
@@ -26,7 +26,6 @@ function FileBrowserContent() {
     setSelectedFilePath,
     currentPath,
     identityId,
-    setCurrentPath,
     setIdentityId,
     setIsAdmin,
   } = useFileBrowserStore();
@@ -34,6 +33,32 @@ function FileBrowserContent() {
   const { trigger: triggerUpload } = useUploadTrigger();
   const resolvedPath = currentPath === 'private/' && !identityId ? '' : currentPath;
   const { data } = useFolderContents(resolvedPath);
+
+  // Stamp the initial history entry with state so popstate can restore it.
+  useEffect(() => {
+    const { path, viewer } = parseUrlHash(window.location.hash);
+    const p = path ?? currentPath;
+    const v = viewer ?? null;
+    history.replaceState({ path: p, viewer: v }, '', buildUrlHash(p, v));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Handle browser back/forward by restoring state from the history entry.
+  useEffect(() => {
+    const handlePop = (e: PopStateEvent) => {
+      const state = e.state as { path: string; viewer: string | null } | null;
+      if (state?.path) {
+        // Bypass store actions (which push new history entries) — set state directly.
+        useFileBrowserStore.setState({
+          currentPath: state.path,
+          mediaViewerPath: state.viewer ?? null,
+          selectedFilePath: null,
+        });
+      }
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, []);
 
   useEffect(() => {
     fetchAuthSession().then((session) => {
@@ -60,11 +85,19 @@ function FileBrowserContent() {
     });
   }, [setIdentityId, setIsAdmin, user]);
 
+  // Redirect private/ → private/{identityId}/ once the identity resolves.
+  // Use replaceState so this silent redirect doesn't create a history entry.
   useEffect(() => {
     if (identityId && currentPath === 'private/') {
-      setCurrentPath(`private/${identityId}/`);
+      const newPath = `private/${identityId}/`;
+      history.replaceState({ path: newPath, viewer: null }, '', buildUrlHash(newPath, null));
+      useFileBrowserStore.setState({
+        currentPath: newPath,
+        selectedFilePath: null,
+        mediaViewerPath: null,
+      });
     }
-  }, [currentPath, identityId, setCurrentPath]);
+  }, [currentPath, identityId]);
 
   const selectedFile: StorageFile | null =
     data?.files.find((f) => f.path === selectedFilePath) ?? null;
