@@ -32,6 +32,25 @@ export interface VaultFile {
   lastAccessedAt: string | null
 }
 
+export type RetrievalStatus =
+  | 'requested' | 'validated' | 'initiated' | 'polling'
+  | 'ready' | 'notification_sent' | 'completed' | 'expired'
+
+export interface RetrievalRequest {
+  id: string
+  userId: string
+  vaultId: string
+  fileIds: string[]
+  urgency: Urgency
+  status: RetrievalStatus
+  estimatedCostCents: number | null
+  downloadUrl: string | null
+  readyAt: string | null
+  expiresAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface UsageData {
   storageByTier: Record<Tier, number>
   periodStart: string
@@ -190,6 +209,46 @@ export function useFileDownloadUrl(fileId: string | null) {
     enabled: !!fileId,
     staleTime: 50 * 60 * 1000, // treat presigned URL as fresh for 50 min
     gcTime: 60 * 60 * 1000,
+  })
+}
+
+// ---- Retrieval hooks -------------------------------------------------------
+
+export function useRequestRetrieval() {
+  const apiFetch = useApiFetch()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ fileIds, urgency }: { fileIds: string[]; urgency: Urgency }) =>
+      apiFetch<{ retrieval: RetrievalRequest }>('/retrievals', {
+        method: 'POST',
+        body: JSON.stringify({ fileIds, urgency }),
+      }).then((r) => r.retrieval),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['retrievals'] }),
+  })
+}
+
+export function useRetrievals() {
+  const apiFetch = useApiFetch()
+  return useQuery({
+    queryKey: ['retrievals'] as const,
+    queryFn: () =>
+      apiFetch<{ retrievals: RetrievalRequest[] }>('/retrievals').then((r) => r.retrievals),
+    staleTime: 20_000,
+  })
+}
+
+export function useRetrieval(id: string | null) {
+  const apiFetch = useApiFetch()
+  return useQuery({
+    queryKey: ['retrievals', id] as const,
+    queryFn: () =>
+      apiFetch<{ retrieval: RetrievalRequest }>(`/retrievals/${id}`).then((r) => r.retrieval),
+    enabled: !!id,
+    // Poll every 30s while restore is in flight
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      return status === 'polling' || status === 'initiated' ? 30_000 : false
+    },
   })
 }
 
