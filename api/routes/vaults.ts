@@ -3,9 +3,8 @@ import { zValidator } from '@hono/zod-validator'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { eq, and, isNull, desc } from 'drizzle-orm'
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { requireAuth } from '../middleware/auth'
+import { getBackend } from '../storage'
 import { db } from '../db/client'
 import { vaults, files } from '../db/schema'
 import { getUserByClerkId, buildS3Key } from '../lib/db-helpers'
@@ -13,8 +12,6 @@ import { getUserByClerkId, buildS3Key } from '../lib/db-helpers'
 export const vaultsRouter = new Hono()
 
 vaultsRouter.use('*', requireAuth)
-
-const s3 = new S3Client({ region: process.env.AWS_REGION ?? 'us-east-1' })
 
 // ---- Schemas ---------------------------------------------------------------
 
@@ -168,19 +165,8 @@ vaultsRouter.post('/:id/upload-url', zValidator('json', uploadUrlSchema), async 
     })
     .returning()
 
-  const command = new PutObjectCommand({
-    Bucket: process.env.S3_BUCKET!,
-    Key: s3Key,
-    ContentType: contentType,
-    ContentLength: sizeBytes,
-    Metadata: {
-      'vault-id': vaultId,
-      'file-id': fileId,
-      'user-id': user.id,
-    },
-  })
-
-  const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 3600 })
+  const backend = getBackend(storageTier)
+  const uploadUrl = await backend.getPresignedUploadUrl(s3Key, contentType, 3600)
 
   return c.json({ fileId: fileRecord.id, uploadUrl, s3Key }, 201)
 })
