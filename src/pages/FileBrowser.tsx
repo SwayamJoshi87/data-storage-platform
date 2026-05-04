@@ -1,61 +1,46 @@
 import { useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useUser } from '@clerk/clerk-react';
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { AppSidebar } from '@/components/layout/AppSidebar';
-import { Topbar } from '@/components/layout/Topbar';
+import { useFileBrowserStore } from '@/store/useFileBrowserStore';
+import { AppShell } from '@/components/layout/AppShell';
 import { FileGrid } from '@/components/files/FileGrid';
 import { FileDetail } from '@/components/files/FileDetail';
 import { UploadZone, useUploadTrigger } from '@/components/files/UploadZone';
-import { useFileBrowserStore } from '@/store/useFileBrowserStore';
-import { useFolderContents } from '@/hooks/useStorage';
-import type { StorageFile } from '@/hooks/useStorage';
+import { useVaults } from '@/hooks/useApi';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
-function FileBrowserContent() {
-  const {
-    selectedFilePath,
-    setSelectedFilePath,
-    currentPath,
-    identityId,
-    setCurrentPath,
-    setIdentityId,
-    setIsAdmin,
-  } = useFileBrowserStore();
+export default function FileBrowser() {
+  const { vaultId } = useParams<{ vaultId: string }>();
+  const navigate = useNavigate();
   const { user, isLoaded } = useUser();
+  const { setIsAdmin, selectedFileId, setSelectedFileId } = useFileBrowserStore();
+  const { data: vaults } = useVaults();
   const { trigger: triggerUpload } = useUploadTrigger();
-  const resolvedPath = currentPath === 'private/' && !identityId ? '' : currentPath;
-  const { data } = useFolderContents(resolvedPath);
 
   useEffect(() => {
     if (!isLoaded || !user) return;
-    setIdentityId(user.id);
     setIsAdmin(user.publicMetadata?.isAdmin === true);
-  }, [isLoaded, user, setIdentityId, setIsAdmin]);
+  }, [isLoaded, user, setIsAdmin]);
 
+  // Redirect if vault not found once vaults are loaded
   useEffect(() => {
-    if (identityId && currentPath === 'private/') {
-      setCurrentPath(`private/${identityId}/`);
+    if (vaults && vaultId && !vaults.find((v) => v.id === vaultId)) {
+      navigate('/', { replace: true });
     }
-  }, [currentPath, identityId, setCurrentPath]);
+  }, [vaults, vaultId, navigate]);
 
-  const selectedFile: StorageFile | null =
-    data?.files.find((f) => f.path === selectedFilePath) ?? null;
+  const currentVault = vaults?.find((v) => v.id === vaultId) ?? null;
+
+  if (!vaultId) return null;
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset className="flex flex-col overflow-hidden">
-        <Topbar onUploadClick={triggerUpload} />
-        <UploadZone>
-          <ScrollArea className="h-full flex-1">
-            <FileGrid />
-          </ScrollArea>
-        </UploadZone>
-      </SidebarInset>
-
-      <FileDetail file={selectedFile} onClose={() => setSelectedFilePath(null)} />
-    </SidebarProvider>
+    <AppShell onUploadClick={triggerUpload}>
+      <UploadZone vaultId={vaultId} defaultTier={currentVault?.defaultTier ?? 'frozen'}>
+        <ScrollArea className="h-full flex-1">
+          <FileGrid vaultId={vaultId} />
+        </ScrollArea>
+      </UploadZone>
+      <FileDetail fileId={selectedFileId} onClose={() => setSelectedFileId(null)} />
+    </AppShell>
   );
 }
-
-export default FileBrowserContent;

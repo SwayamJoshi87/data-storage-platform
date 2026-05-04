@@ -17,7 +17,7 @@ export function getFileCategory(name: string): FileCategory {
   return 'other';
 }
 
-export function formatFileSize(bytes?: number): string {
+export function formatFileSize(bytes?: number | null): string {
   if (bytes === undefined || bytes === null) return '—';
   if (bytes === 0) return '0 B';
   if (bytes < 1024) return `${bytes} B`;
@@ -26,24 +26,19 @@ export function formatFileSize(bytes?: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-export function formatDate(date?: Date): string {
+export function formatDate(date?: Date | string | null): string {
   if (!date) return '—';
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date);
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(d);
 }
 
-export function formatDateTime(date?: Date): string {
+export function formatDateTime(date?: Date | string | null): string {
   if (!date) return '—';
+  const d = typeof date === 'string' ? new Date(date) : date;
   return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).format(d);
 }
 
 export function getFileExtension(name: string): string {
@@ -52,12 +47,12 @@ export function getFileExtension(name: string): string {
 
 export function categoryColor(cat: FileCategory): string {
   switch (cat) {
-    case 'image': return 'text-emerald-400';
-    case 'video': return 'text-purple-400';
-    case 'audio': return 'text-pink-400';
-    case 'pdf': return 'text-red-400';
-    case 'text': return 'text-blue-400';
+    case 'image':   return 'text-emerald-400';
+    case 'video':   return 'text-purple-400';
+    case 'audio':   return 'text-pink-400';
+    case 'pdf':     return 'text-red-400';
+    case 'text':    return 'text-blue-400';
     case 'archive': return 'text-amber-400';
-    default: return 'text-muted-foreground';
+    default:        return 'text-muted-foreground';
   }
 }

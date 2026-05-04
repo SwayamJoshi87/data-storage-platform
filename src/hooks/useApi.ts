@@ -180,6 +180,19 @@ export function useGetUploadUrl() {
   })
 }
 
+// ---- Download URL hook -----------------------------------------------------
+
+export function useFileDownloadUrl(fileId: string | null) {
+  const apiFetch = useApiFetch()
+  return useQuery({
+    queryKey: ['files', fileId, 'download-url'] as const,
+    queryFn: () => apiFetch<{ url: string; expiresIn: number }>(`/files/${fileId}/download-url`).then((r) => r.url),
+    enabled: !!fileId,
+    staleTime: 50 * 60 * 1000, // treat presigned URL as fresh for 50 min
+    gcTime: 60 * 60 * 1000,
+  })
+}
+
 // ---- Usage hook ------------------------------------------------------------
 
 export function useUsage() {
