@@ -25,4 +25,7 @@ app.route('/api/usage', usageRouter)
 app.post('/api/webhooks/clerk', clerkWebhook)
 app.post('/api/webhooks/stripe', stripeWebhook)
 
-export default app
+// Vercel serverless handler
+import { handle } from 'hono/vercel'
+export const config = { maxDuration: 30 }
+export default handle(app)
